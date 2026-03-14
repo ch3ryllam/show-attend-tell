@@ -1,1 +1,10 @@
 data/flickr8k/Images/
+data/flickr8k/processed/
+
+__pycache__/
+*.pyc
+
+.venv/
+env/
+
+.DS_Store
