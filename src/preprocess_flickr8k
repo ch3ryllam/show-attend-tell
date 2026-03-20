@@ -3,13 +3,15 @@ import re
 import pickle
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+import torch
 
+from PIL import Image
+from collections import Counter
 from sklearn.utils import shuffle
-from tensorflow.keras.preprocessing.image import load_img, img_to_array
-from tensorflow.keras.applications.vgg16 import VGG16, preprocess_input as vgg_preprocess
-from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input as resnet_preprocess
-from tensorflow.keras.models import Model
+from torchvision import models, transforms
+from torchvision.models import VGG16_Weights, ResNet50_Weights
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #--------------------------------
 # DATA SETUP
@@ -33,7 +35,6 @@ file.close()
 img_cap_corpus = captions_txt.split('\n')
 
 # Create a dataframe which summarizes the image, path & captions as a dataframe
-from collections import Counter
 
 datatxt = []
 for line in img_cap_corpus:
@@ -142,36 +143,75 @@ test_img_captions = test_annotations.reset_index(drop=True)
 #--------------------------------
 
 # Create tokenizer for the top words
-def tokenize_captions(top_cap, captions):
-    special_chars = '!"#$%&()*+.,-/:;=?@[\\]^_`{|}~ '
-    tokenizer = tf.keras.preprocessing.text.Tokenizer(
-        num_words=top_cap,
-        oov_token="UNK",
-        filters=special_chars
-    )
-    tokenizer.fit_on_texts(captions)
+class Tokenizer:
+    def __init__(self, num_words = None, oov_token="UNK", filters='!"#$%&()*+.,-/:;=?@[\\]^_`{|}~'):
+        self.num_words = num_words
+        self.oov_token = oov_token
+        self.filters = filters
+        self.word_counts = Counter()
+        self.word_index = {}
+        self.index_word = {}
 
-    # Adding PAD to tokenizer list
-    tokenizer.word_index['PAD'] = 0
-    tokenizer.index_word[0] = 'PAD'
+    def fit_on_texts(self, captions):
+        for caption in captions:
+            tokens = split_sentence(caption)
+            self.word_counts.update(tokens)
+    
+        # Adding PAD to tokenizer list
+        self.word_index['PAD'] = 0
+        self.index_word[0] = 'PAD'
+        self.word_index[self.oov_token] = 1
+        self.index_word[1] = self.oov_token
 
-    return tokenizer
+        most_common = self.word_counts.most_common(self.num_words - 2 if self.num_words else None)
+
+        idx = 2
+        for word, _ in most_common:
+            if word not in self.word_index:
+                self.word_index[word] = idx
+                self.index_word[idx] = word
+                idx += 1
+
+    def texts_to_sequences(self, captions):
+        sequences = []
+        unk_idx = self.word_index[self.oov_token]
+
+        for caption in captions:
+            tokens = split_sentence(caption)
+            seq = [self.word_index.get(token, unk_idx) for token in tokens]
+            sequences.append(seq)
+
+        return sequences
+
+def pad_sequences(sequences, maxlen, padding='post'):
+    arr = np.zeros((len(sequences), maxlen), dtype=np.int64)
+
+    for i, seq in enumerate(sequences):
+        seq = seq[:maxlen]
+        if padding == 'post':
+            arr[i, :len(seq)] = seq
+        else:
+            arr[i, -len(seq):] = seq
+
+    return arr
 
 top_freq_words = 5000
-tokenizer = tokenize_captions(top_freq_words, train_img_captions)
+
+tokenizer = Tokenizer(num_words = top_freq_words)
+tokenizer.fit_on_texts(train_img_captions)
 
 # Pad each vector to the max_length of the captions and store it to a variable
 train_cap_seqs = tokenizer.texts_to_sequences(train_img_captions)
 val_cap_seqs = tokenizer.texts_to_sequences(val_img_captions)
 test_seqs = tokenizer.texts_to_sequences(test_img_captions)
 
-train_cap_vector = tf.keras.preprocessing.sequence.pad_sequences(
+train_cap_vector = pad_sequences(
     train_cap_seqs, maxlen=max_length, padding='post'
 )
-val_cap_vector = tf.keras.preprocessing.sequence.pad_sequences(
+val_cap_vector = pad_sequences(
     val_cap_seqs, maxlen=max_length, padding='post'
 )
-test_cap_vector = tf.keras.preprocessing.sequence.pad_sequences(
+test_cap_vector = pad_sequences(
     test_seqs, maxlen=max_length, padding='post'
 )
 
@@ -200,21 +240,31 @@ def extract_features(image_paths, extractor):
             print(i)
     return features
 
-# Create VGG16 model
-vgg_base = VGG16(weights='imagenet', include_top=False) # remove classification head
-vgg_model = Model(inputs=vgg_base.input, outputs=vgg_base.output)
+# Shared image transform
+imagenet_transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+])
 
-print(vgg_model.output_shape)
+# Create VGG16 model
+vgg_base = models.vgg16(weights = VGG16_Weights.IMAGENET1K_V1)
+vgg_model = vgg_base.features.to(device)
+vgg_model.eval()
+
+print("VGG16 finished loading")
 
 # Extracts VGG16 features
 def extract_vgg16_features(img_path):
-    img = load_img(img_path, target_size=(224, 224))
-    img = img_to_array(img)
-    img = np.expand_dims(img, axis=0)
-    img = vgg_preprocess(img)
+    img = Image.open(img_path).convert("RGB")
+    img = imagenet_transform(img).unsqueeze(0).to(device)
+    
+    with torch.no_grad():
+        features = vgg_model(img) # dims (1, 512, 7, 7)
 
-    features = vgg_model.predict(img, verbose=0)
-    features = features.reshape(-1, features.shape[-1])
+    features = features.squeeze(0).permute(1, 2, 0).reshape(-1, features.shape[1])
+    features = features.cpu().numpy()
 
     return features
 
@@ -229,20 +279,22 @@ val_vgg = extract_features(val_img_vector_uniq, extract_vgg16_features)
 test_vgg = extract_features(test_img_vector_uniq, extract_vgg16_features)
 
 # Create ResNet50 model
-resnet_base = ResNet50(weights='imagenet', include_top=False) # remove classification head
-resnet_model = Model(inputs=resnet_base.input, outputs=resnet_base.output)
+resnet_base = models.resnet50(weights = ResNet50_Weights.IMAGENET1K_V2)
+resnet_model = torch.nn.Sequential(*list(resnet_base.children())[:-2]).to(device)
+resnet_model.eval()
 
-print(resnet_model.output_shape)
+print("ResNet50 finnished loading")
 
 # Extract ResNet50 features 
 def extract_resnet50_features(img_path):
-    img = load_img(img_path, target_size=(224, 224))
-    img = img_to_array(img)
-    img = np.expand_dims(img, axis=0)
-    img = resnet_preprocess(img)
+    img = Image.open(img_path).convert("RGB")
+    img = imagenet_transform(img).unsqueeze(0).to(device)
+    
+    with torch.no_grad():
+        features = resnet_model(img) # dims (1, 2048, 7, 7)
 
-    features = resnet_model.predict(img, verbose=0)
-    features = features.reshape(-1, features.shape[-1])
+    features = features.squeeze(0).permute(1, 2, 0).reshape(-1, features.shape[1])
+    features = features.cpu().numpy()
 
     return features
 
@@ -259,7 +311,7 @@ with open(os.path.join(SAVE_DIR, "tokenizer.pkl"), "wb") as f:
 
 metadata = {
     "max_length": max_length,
-    "vocab_size": len(tokenizer.word_index) + 1,
+    "vocab_size": len(tokenizer.word_index),
     "top_freq_words": top_freq_words
 }
 with open(os.path.join(SAVE_DIR, "metadata.pkl"), "wb") as f:
