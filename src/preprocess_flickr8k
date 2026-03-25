@@ -11,6 +11,9 @@ from sklearn.utils import shuffle
 from torchvision import models, transforms
 from torchvision.models import VGG16_Weights, ResNet50_Weights
 
+from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms import RandAugment
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #--------------------------------
@@ -74,12 +77,75 @@ test_imgs = load_split(TEST_IMG_PATH)
 
 print(len(train_imgs), len(val_imgs), len(test_imgs))
 
+
 # Save splits in dataframes
 train_df = df[df["Image_ID"].isin(train_imgs)].reset_index(drop=True)
 val_df = df[df["Image_ID"].isin(val_imgs)].reset_index(drop=True)
 test_df = df[df["Image_ID"].isin(test_imgs)].reset_index(drop=True)
 
 print(len(train_df), len(val_df), len(test_df))
+
+#--------------------------------
+# DATALOADER
+#--------------------------------
+
+# Define randomized transforms for training
+train_transform = transforms.Compose([
+    transforms.RandomResizedCrop(224),
+    transforms.RandomHorizontalFlip(),
+    RandAugment(2, 9),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+])
+
+# Define fixed transforms for val/test
+test_transform = transforms.Compose([
+    transforms.Resize(224),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+])
+
+class SimCLRDataset(Dataset):
+    def __init__(self, data, transform, split='train'):
+        self.split = split
+        self.data = data.reset_index(drop=True)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        image_path = self.data.iloc[idx]['Path']
+        image = Image.open(image_path).convert("RGB")
+
+        # Create 2 augmentations of same image for training
+        if self.split == 'train':
+            image1 = self.transform(image)
+            image2 = self.transform(image)
+            return image1, image2
+        else:
+            image = self.transform(image)
+            return image
+
+# Get unique images (each image shows up 5 times since each image has 5 captions)
+train_unique_df = train_df.drop_duplicates(subset=['Image_ID']).reset_index(drop=True)
+val_unique_df = val_df.drop_duplicates(subset=['Image_ID']).reset_index(drop=True)
+test_unique_df = test_df.drop_duplicates(subset=['Image_ID']).reset_index(drop=True)
+
+# Create appropriate datasets with transformations for train/va/test
+train_dataset = SimCLRDataset(train_unique_df, train_transform, split='train')
+val_dataset = SimCLRDataset(val_unique_df, test_transform, split='test')
+test_dataset = SimCLRDataset(test_unique_df, test_transform, split='test')
+
+BATCH_SIZE = 256
+
+# Create dataloaders
+train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True) 
+val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 #--------------------------------
 # CAPTION PREPROCESSING
