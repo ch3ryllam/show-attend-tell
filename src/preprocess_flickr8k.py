@@ -16,6 +16,8 @@ from torchvision.transforms import RandAugment
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+print("Starting Flickr8k preprocessing...")
+
 #--------------------------------
 # DATA SETUP
 #--------------------------------
@@ -57,8 +59,8 @@ for line in img_cap_corpus:
 df = pd.DataFrame(datatxt, columns=['Image_ID', 'Path', 'Caption'])
 
 uni_filenames = np.unique(df.Image_ID.values)
-print("The number of unique file names:", len(uni_filenames))
-print("The distribution of the number of captions for each image:")
+print(f"Loaded captions for {len(uni_filenames)} unique images")
+print("Caption distribution (captions per image):")
 print(Counter(Counter(df.Image_ID.values).values()))
 
 #--------------------------------
@@ -75,19 +77,20 @@ train_imgs = load_split(TRAIN_IMG_PATH)
 val_imgs = load_split(VAL_IMG_PATH)
 test_imgs = load_split(TEST_IMG_PATH)
 
-print(len(train_imgs), len(val_imgs), len(test_imgs))
-
+print(f"Split sizes (images): train={len(train_imgs)}, val={len(val_imgs)}, test={len(test_imgs)}")
 
 # Save splits in dataframes
 train_df = df[df["Image_ID"].isin(train_imgs)].reset_index(drop=True)
 val_df = df[df["Image_ID"].isin(val_imgs)].reset_index(drop=True)
 test_df = df[df["Image_ID"].isin(test_imgs)].reset_index(drop=True)
 
-print(len(train_df), len(val_df), len(test_df))
+print(f"Split sizes (captions): train={len(train_df)}, val={len(val_df)}, test={len(test_df)}")
 
 #--------------------------------
 # DATALOADER
 #--------------------------------
+
+print("Creating datasets and dataloaders...")
 
 # Define randomized transforms for training
 train_transform = transforms.Compose([
@@ -193,7 +196,8 @@ df_word = df_word.sort_values(by='count', ascending=False).reset_index(drop=True
 
 # Find max length of caption sequence
 max_length = max(train_df.Caption.apply(lambda x: len(x.split())))
-print("Max caption length:", max_length)
+
+print(f"Max caption length: {max_length}")
 
 # Shuffle TRAINING data
 def data_limiter(captions, img_vector):
@@ -281,7 +285,8 @@ test_cap_vector = pad_sequences(
     test_seqs, maxlen=max_length, padding='post'
 )
 
-print("The shape of train caption vector is :" + str(train_cap_vector.shape))
+print(f"Train caption vector shape: {train_cap_vector.shape}")
+print("Sample caption vectors (first 5):")
 print(train_cap_vector[:5])
 
 # Create word-to-index and index-to-word mappings.
@@ -303,7 +308,7 @@ def extract_features(image_paths, extractor):
         image_id = os.path.basename(path)
         features[image_id] = extractor(path)
         if i % 500 == 0:
-            print(i)
+            print(f"Processed {i}/{len(image_paths)} images")
     return features
 
 # Shared image transform
@@ -319,7 +324,7 @@ vgg_base = models.vgg16(weights = VGG16_Weights.IMAGENET1K_V1)
 vgg_model = vgg_base.features.to(device)
 vgg_model.eval()
 
-print("VGG16 finished loading")
+print("Loaded VGG16 model")
 
 # Extracts VGG16 features
 def extract_vgg16_features(img_path):
@@ -340,6 +345,8 @@ val_img_vector_uniq = val_df.Path.drop_duplicates().tolist()
 test_img_vector_uniq = test_df.Path.drop_duplicates().tolist()
 
 # Extract VGG16 features from Flickr8k images
+print("Extracting VGG16 features...")
+
 train_vgg = extract_features(train_img_vector_uniq, extract_vgg16_features)
 val_vgg = extract_features(val_img_vector_uniq, extract_vgg16_features)
 test_vgg = extract_features(test_img_vector_uniq, extract_vgg16_features)
@@ -349,9 +356,11 @@ resnet_base = models.resnet50(weights = ResNet50_Weights.IMAGENET1K_V2)
 resnet_model = torch.nn.Sequential(*list(resnet_base.children())[:-2]).to(device)
 resnet_model.eval()
 
-print("ResNet50 finnished loading")
+print("Loaded ResNet50 model")
 
 # Extract ResNet50 features 
+print("Extracting ResNet50 features...")
+
 def extract_resnet50_features(img_path):
     img = Image.open(img_path).convert("RGB")
     img = imagenet_transform(img).unsqueeze(0).to(device)
@@ -405,7 +414,8 @@ with open(os.path.join(SAVE_DIR, "val_resnet.pkl"), "wb") as f:
 with open(os.path.join(SAVE_DIR, "test_resnet.pkl"), "wb") as f:
     pickle.dump(test_resnet, f)
 
-print("All preprocessing outputs saved to:", SAVE_DIR)
+print(f"All preprocessing outputs saved to: {SAVE_DIR}")
+print("Preprocessing complete! :) ")
 
 
 

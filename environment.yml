@@ -1,0 +1,15 @@
+name: show-attend-tell
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch
+  - torchvision
+  - numpy
+  - pandas
+  - scikit-learn
+  - pillow
+  - pip
+  - pip:
+      - tqdm
