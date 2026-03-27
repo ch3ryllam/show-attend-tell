@@ -12,7 +12,6 @@ from torchvision import models, transforms
 from torchvision.models import VGG16_Weights, ResNet50_Weights
 
 from torch.utils.data import Dataset, DataLoader
-from torchvision.transforms import RandAugment
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -86,69 +85,6 @@ test_df = df[df["Image_ID"].isin(test_imgs)].reset_index(drop=True)
 
 print(f"Split sizes (captions): train={len(train_df)}, val={len(val_df)}, test={len(test_df)}")
 
-#--------------------------------
-# DATALOADER
-#--------------------------------
-
-print("Creating datasets and dataloaders...")
-
-# Define randomized transforms for training
-train_transform = transforms.Compose([
-    transforms.RandomResizedCrop(224),
-    transforms.RandomHorizontalFlip(),
-    RandAugment(2, 9),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                         std=[0.229, 0.224, 0.225])
-])
-
-# Define fixed transforms for val/test
-test_transform = transforms.Compose([
-    transforms.Resize(224),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                         std=[0.229, 0.224, 0.225])
-])
-
-class SimCLRDataset(Dataset):
-    def __init__(self, data, transform, split='train'):
-        self.split = split
-        self.data = data.reset_index(drop=True)
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        image_path = self.data.iloc[idx]['Path']
-        image = Image.open(image_path).convert("RGB")
-
-        # Create 2 augmentations of same image for training
-        if self.split == 'train':
-            image1 = self.transform(image)
-            image2 = self.transform(image)
-            return image1, image2
-        else:
-            image = self.transform(image)
-            return image
-
-# Get unique images (each image shows up 5 times since each image has 5 captions)
-train_unique_df = train_df.drop_duplicates(subset=['Image_ID']).reset_index(drop=True)
-val_unique_df = val_df.drop_duplicates(subset=['Image_ID']).reset_index(drop=True)
-test_unique_df = test_df.drop_duplicates(subset=['Image_ID']).reset_index(drop=True)
-
-# Create appropriate datasets with transformations for train/va/test
-train_dataset = SimCLRDataset(train_unique_df, train_transform, split='train')
-val_dataset = SimCLRDataset(val_unique_df, test_transform, split='test')
-test_dataset = SimCLRDataset(test_unique_df, test_transform, split='test')
-
-BATCH_SIZE = 256
-
-# Create dataloaders
-train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True) 
-val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
-test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 #--------------------------------
 # CAPTION PREPROCESSING
@@ -265,7 +201,7 @@ def pad_sequences(sequences, maxlen, padding='post'):
 
     return arr
 
-top_freq_words = 5000
+top_freq_words = 10000 # paper vocab size is 10,000
 
 tokenizer = Tokenizer(num_words = top_freq_words)
 tokenizer.fit_on_texts(train_img_captions)
@@ -273,7 +209,7 @@ tokenizer.fit_on_texts(train_img_captions)
 # Pad each vector to the max_length of the captions and store it to a variable
 train_cap_seqs = tokenizer.texts_to_sequences(train_img_captions)
 val_cap_seqs = tokenizer.texts_to_sequences(val_img_captions)
-test_seqs = tokenizer.texts_to_sequences(test_img_captions)
+test_cap_seqs = tokenizer.texts_to_sequences(test_img_captions)
 
 train_cap_vector = pad_sequences(
     train_cap_seqs, maxlen=max_length, padding='post'
@@ -282,7 +218,7 @@ val_cap_vector = pad_sequences(
     val_cap_seqs, maxlen=max_length, padding='post'
 )
 test_cap_vector = pad_sequences(
-    test_seqs, maxlen=max_length, padding='post'
+    test_cap_seqs, maxlen=max_length, padding='post'
 )
 
 print(f"Train caption vector shape: {train_cap_vector.shape}")
@@ -319,9 +255,10 @@ imagenet_transform = transforms.Compose([
                          std=[0.229, 0.224, 0.225])
 ])
 
-# Create VGG16 model
+# Create VGG16 model 
+# 14×14×512 feature map of the fourth convolutional layer before max pooling
 vgg_base = models.vgg16(weights = VGG16_Weights.IMAGENET1K_V1)
-vgg_model = vgg_base.features.to(device)
+vgg_model = torch.nn.Sequential(*list(vgg_base.features.children())[:23]).to(device) # stop at correct vgg16 layer 
 vgg_model.eval()
 
 print("Loaded VGG16 model")
@@ -332,7 +269,7 @@ def extract_vgg16_features(img_path):
     img = imagenet_transform(img).unsqueeze(0).to(device)
     
     with torch.no_grad():
-        features = vgg_model(img) # dims (1, 512, 7, 7)
+        features = vgg_model(img) # dims (1, 512, 14, 14)
 
     features = features.squeeze(0).permute(1, 2, 0).reshape(-1, features.shape[1])
     features = features.cpu().numpy()
@@ -351,9 +288,11 @@ train_vgg = extract_features(train_img_vector_uniq, extract_vgg16_features)
 val_vgg = extract_features(val_img_vector_uniq, extract_vgg16_features)
 test_vgg = extract_features(test_img_vector_uniq, extract_vgg16_features)
 
-# Create ResNet50 model
+print("Sample VGG feature shape (should be 196 x 512):", next(iter(train_vgg.values())).shape)
+
+# Create ResNet50 model (for comparison to VGG16)
 resnet_base = models.resnet50(weights = ResNet50_Weights.IMAGENET1K_V2)
-resnet_model = torch.nn.Sequential(*list(resnet_base.children())[:-2]).to(device)
+resnet_model = torch.nn.Sequential(*list(resnet_base.children())[:-2]).to(device) # stop at earlier layer to get spatial feature vectors like with vgg
 resnet_model.eval()
 
 print("Loaded ResNet50 model")
@@ -377,6 +316,59 @@ def extract_resnet50_features(img_path):
 train_resnet = extract_features(train_img_vector_uniq, extract_resnet50_features)
 val_resnet = extract_features(val_img_vector_uniq, extract_resnet50_features)
 test_resnet = extract_features(test_img_vector_uniq, extract_resnet50_features)
+
+print("Sample ResNet feature shape (shouldbe 49 x 2048):", next(iter(train_resnet.values())).shape)
+
+#--------------------------------
+# DATALOADER : training takes in image features + captions
+#--------------------------------
+
+# Dataframes consist of (image, caption) pairings but the same image appears 5 times for each of its captions
+class FeatureCaptionDataset(Dataset):
+    def __init__(self, df, caption_vector, feature_dict):
+        self.df = df.reset_index(drop=True)
+        self.caption_vector = torch.tensor(caption_vector, dtype=torch.long)
+        self.feature_dict = feature_dict
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        image_id = self.df.iloc[idx]["Image_ID"]
+        features = torch.tensor(self.feature_dict[image_id], dtype=torch.float32)
+        caption = self.caption_vector[idx]
+        return features, caption, image_id
+
+
+# Mini-batches = 64
+BATCH_SIZE = 64
+
+# Datasets with VGG16 feature extractions (used in paper)
+vgg_train_dataset = FeatureCaptionDataset(train_df, train_cap_vector, train_vgg)
+vgg_val_dataset = FeatureCaptionDataset(val_df, val_cap_vector, val_vgg)
+vgg_test_dataset = FeatureCaptionDataset(test_df, test_cap_vector, test_vgg)
+
+# VGG16 Dataloaders
+vgg_train_dataloader = DataLoader(vgg_train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+vgg_val_dataloader = DataLoader(vgg_val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+vgg_test_dataloader = DataLoader(vgg_test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+print("Created dataloader with VGG16")
+
+# Datasets with ResNet50 feature extractions (for comparison)
+resnet_train_dataset = FeatureCaptionDataset(train_df, train_cap_vector, train_resnet)
+resnet_val_dataset = FeatureCaptionDataset(val_df, val_cap_vector, val_resnet)
+resnet_test_dataset = FeatureCaptionDataset(test_df, test_cap_vector, test_resnet)
+
+resnet_train_dataloader = DataLoader(resnet_train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+resnet_val_dataloader = DataLoader(resnet_val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+resnet_test_dataloader = DataLoader(resnet_test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+print("Created ResNet dataloaders (for comparison)")
+
+#--------------------------------
+# SAVE OUTPUTS
+#--------------------------------
 
 # Save preprocessed outputs
 os.makedirs(SAVE_DIR, exist_ok=True)
