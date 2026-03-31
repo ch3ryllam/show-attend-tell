@@ -1,3 +1,7 @@
+"""
+Usage:
+"""
+
 import argparse, pickle, sys, os, time
 import pandas as pd
 import torch
@@ -23,9 +27,7 @@ except LookupError:
 class EarlyStopping:
     """Early stopping based on BLEU score."""
 
-    def __init__(
-        self, patience=5, delta=0, verbose=True, path="checkpoints/best_model.pth"
-    ):
+    def __init__(self, patience=5, verbose=True, path="checkpoints/best_model.pth"):
         self.patience = patience
         self.path = path
         self.verbose = verbose
@@ -452,7 +454,7 @@ def train_and_validate(
             early_stopping.check_early_stop(val_bleu4, decoder, optimizer, epoch)
 
             if early_stopping.early_stop:
-                print("Early stopping after {epoch} epochs without improvement.")
+                print(f"Early stopping after {epoch} epochs without improvement.")
                 break
 
 
@@ -477,6 +479,12 @@ def parse_args():
         type=str,
         default=None,
         help="Path to checkpoint to resume training from",
+    )
+    parser.add_argument(
+        "--feature_extractor",
+        type=str,
+        default="vgg",
+        choices=["vgg", "resnet"],
     )
 
     # Training hyperparameters
@@ -544,9 +552,12 @@ if __name__ == "__main__":
 
     train_df = pd.read_csv(os.path.join(args.data_dir, "train_df.csv"))
     val_df = pd.read_csv(os.path.join(args.data_dir, "val_df.csv"))
-    with open(os.path.join(args.data_dir, "train_vgg.pkl"), "rb") as f:
+
+    feature_name = args.feature_extractor
+
+    with open(os.path.join(args.data_dir, f"train_{feature_name}.pkl"), "rb") as f:
         train_features = pickle.load(f)
-    with open(os.path.join(args.data_dir, "val_vgg.pkl"), "rb") as f:
+    with open(os.path.join(args.data_dir, f"val_{feature_name}.pkl"), "rb") as f:
         val_features = pickle.load(f)
     train_cap_vector = np.load(os.path.join(args.data_dir, "train_cap_vector.npy"))
     val_cap_vector = np.load(os.path.join(args.data_dir, "val_cap_vector.npy"))
@@ -566,10 +577,15 @@ if __name__ == "__main__":
             val_ref_dict[img_id] = []
         val_ref_dict[img_id].append(cap_clean.split())
 
+    if args.feature_extractor == "vgg":
+        enc_dim = 512
+    else:
+        enc_dim = 2048
+
     decoder = Decoder(
         vocab_size=len(tokenizer.word_index),
         embed_dim=256,
-        encoder_dim=512,  # 512 for VGG16, 2048 for Resnet50
+        encoder_dim=enc_dim,
         decoder_dim=512,
         attention_dim=512,
         hard_attention=args.hard_attention,
@@ -579,7 +595,7 @@ if __name__ == "__main__":
     for key, value in configs.items():
         print(f"  {key}: {value}")
 
-    print("Starting Training!")
+    print("\nStarting Training!")
     train_and_validate(
         decoder,
         train_loader,
