@@ -1,5 +1,5 @@
 """
-Usage:
+Usage: python code/train.py --data_dir data/flickr8k/processed --ckpt_path checkpoints/sat_best.pth --epochs 30 --batch_size 64 --lr 4e-4 --decoding greedy
 """
 
 import argparse, pickle, sys, os, time
@@ -16,7 +16,7 @@ from nltk.translate.bleu_score import corpus_bleu
 from nltk.translate.meteor_score import meteor_score
 
 from models import Decoder
-from preprocess_flickr8k import FeatureCaptionDataset
+from dataset import FeatureCaptionDataset, Tokenizer
 
 try:
     nltk.data.find("corpora/wordnet")
@@ -36,12 +36,22 @@ class EarlyStopping:
         self.early_stop = False
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    def check_early_stop(self, bleu, model, optimizer, epoch):
-        if bleu > self.best_score:
-            self.best_score = bleu
+    def check_early_stop(
+        self,
+        val_bleu1,
+        val_bleu2,
+        val_bleu3,
+        val_bleu4,
+        val_meteor,
+        model,
+        optimizer,
+        epoch,
+    ):
+        if val_bleu4 > self.best_score:
+            self.best_score = val_bleu4
             if self.verbose:
                 print(
-                    f"Validation BLEU increased ({self.best_score:.4f} -> {bleu:.4f}). Saving model."
+                    f"Validation BLEU increased ({self.best_score:.4f} -> {val_bleu4:.4f}). Saving model."
                 )
 
             torch.save(
@@ -50,6 +60,10 @@ class EarlyStopping:
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "best_bleu": self.best_score,
+                    "val_bleu1": val_bleu1,
+                    "val_bleu2": val_bleu2,
+                    "val_bleu3": val_bleu3,
+                    "val_meteor": val_meteor,
                 },
                 self.path,
             )
@@ -112,7 +126,7 @@ def hard_attn_loss(
         preds, targets, decode_lengths, pad_idx, reduce_mean=False
     )
 
-    reward = -ce_loss_per_sample * decode_lengths.float()
+    reward = -ce_loss_per_sample
     reward = reward.detach()
 
     avg_reward = reward.mean()
@@ -264,7 +278,8 @@ def generate_caption_beam_search(
 
         if len(complete_inds) > 0:
             complete_seqs.extend(seqs[complete_inds].tolist())
-            scores = top_k_scores[complete_inds].squeeze(1) / step
+            length_norm = step**0.7
+            scores = top_k_scores[complete_inds].squeeze(1) / length_norm
             complete_seqs_scores.extend(scores.tolist())
 
         k -= len(complete_inds)
@@ -290,6 +305,21 @@ def generate_caption_beam_search(
     best_seq = complete_seqs[best_idx]
 
     return best_seq
+
+
+def print_best_checkpoint_metrics(path):
+    if not os.path.exists(path):
+        print(f"No checkpoint found at {path}")
+        return
+
+    checkpoint = torch.load(path, map_location="cpu")
+    print("\n=== Best Checkpoint Metrics ===")
+    print(f"Epoch: {checkpoint['epoch']}")
+    print(f"BLEU-1: {checkpoint['val_bleu1']:.4f}")
+    print(f"BLEU-2: {checkpoint['val_bleu2']:.4f}")
+    print(f"BLEU-3: {checkpoint['val_bleu3']:.4f}")
+    print(f"BLEU-4: {checkpoint['val_bleu4']:.4f}")
+    print(f"METEOR: {checkpoint['val_meteor']:.4f}")
 
 
 def train_and_validate(
@@ -319,7 +349,7 @@ def train_and_validate(
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_epoch = checkpoint["epoch"] + 1
         print(
-            f"Resumed training from epoch {start_epoch} with validation loss {checkpoint['val_loss']:.6}"
+            f"Resumed training from epoch {start_epoch} with BLEU-4 {checkpoint['best_bleu']:.4f}"
         )
 
     for epoch in range(start_epoch, configs["epochs"] + 1):
@@ -331,13 +361,16 @@ def train_and_validate(
             features = features.to(device)
             captions = captions.to(device)
 
-            decode_lengths = (captions != pad_idx).sum(dim=1) - 1  # exclude <START>
+            decode_lengths = (captions != pad_idx).sum(dim=1)
+            decode_lengths, sort_ind = decode_lengths.sort(dim=0, descending=True)
 
-            targets = captions[:, 1:]
+            features = features[sort_ind]
+            captions = captions[sort_ind]
 
             preds, _, _, alphas, log_probs = decoder(
                 features, captions[:, :-1], decode_lengths
             )
+            targets = captions[:, 1:][:, : preds.size(1)]
 
             if decoder.hard_attention:
                 loss, ce_loss, reinforce_loss, baseline = hard_attn_loss(
@@ -429,10 +462,10 @@ def train_and_validate(
             meteor_scores = []
             for ref_list, hyp_words in zip(references, hypotheses):
                 hyp_sentence = " ".join(hyp_words)
-                ref_senteces = [" ".join(ref) for ref in ref_list]
+                ref_sentences = [" ".join(ref) for ref in ref_list]
                 meteor_scores.append(
                     meteor_score(
-                        [r.split() for r in ref_senteces], hyp_sentence.split()
+                        [r.split() for r in ref_sentences], hyp_sentence.split()
                     )
                 )
 
@@ -451,7 +484,16 @@ def train_and_validate(
                 )
             )
 
-            early_stopping.check_early_stop(val_bleu4, decoder, optimizer, epoch)
+            early_stopping.check_early_stop(
+                val_bleu1,
+                val_bleu2,
+                val_bleu3,
+                val_bleu4,
+                val_meteor,
+                decoder,
+                optimizer,
+                epoch,
+            )
 
             if early_stopping.early_stop:
                 print(f"Early stopping after {epoch} epochs without improvement.")
@@ -606,3 +648,5 @@ if __name__ == "__main__":
         configs,
         resume_ckpt=args.resume,
     )
+
+    print_best_checkpoint_metrics(configs["checkpoint_path"])

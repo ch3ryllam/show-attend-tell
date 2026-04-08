@@ -39,7 +39,7 @@ class Decoder(nn.Module):
         self.decoder_dim = decoder_dim
         self.hard_attention = hard_attention
 
-        self.attention = Attention(encoder_dim, decoder_dim, decoder_dim)
+        self.attention = Attention(encoder_dim, decoder_dim, attention_dim)
         self.embedding = nn.Embedding(vocab_size, embed_dim)
         self.dropout = nn.Dropout(p)
         self.decode_step = nn.LSTMCell(embed_dim + encoder_dim, decoder_dim)
@@ -70,8 +70,8 @@ class Decoder(nn.Module):
 
         embeddings = self.dropout(self.embedding(captions))
         h, c = self.init_hidden_state(encoder_out)
-        decode_lengths = [l - 1 for l in caption_lengths]  # exclude <END>
-        max_T = max(decode_lengths)
+        decode_lengths = caption_lengths - 1
+        max_T = decode_lengths.max().item()
 
         predictions = torch.zeros(B, max_T, self.vocab_size).to(encoder_out.device)
         alphas = torch.zeros(B, max_T, L).to(encoder_out.device)
