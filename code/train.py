@@ -63,6 +63,7 @@ class EarlyStopping:
                     "val_bleu1": val_bleu1,
                     "val_bleu2": val_bleu2,
                     "val_bleu3": val_bleu3,
+                    "val_bleu4": val_bleu4,
                     "val_meteor": val_meteor,
                 },
                 self.path,
@@ -312,7 +313,7 @@ def print_best_checkpoint_metrics(path):
         print(f"No checkpoint found at {path}")
         return
 
-    checkpoint = torch.load(path, map_location="cpu")
+    checkpoint = torch.load(path, map_location="cpu", weights_only = False)
     print("\n=== Best Checkpoint Metrics ===")
     print(f"Epoch: {checkpoint['epoch']}")
     print(f"BLEU-1: {checkpoint['val_bleu1']:.4f}")
