@@ -111,7 +111,11 @@ test_img_vector = test_df.Path
 
 # Define functions to build vocabulary
 def split_sentence(sentence):
-    return list(filter(lambda x: len(x) > 0, re.split(r'\W+', sentence.lower())))
+    sentence = sentence.lower()
+    sentence = sentence.replace("<start>", " <start> ")
+    sentence = sentence.replace("<end>", " <end> ") 
+    tokens = sentence.split()
+    return tokens
 
 
 def generate_vocabulary(captions):
@@ -140,7 +144,9 @@ def data_limiter(captions, img_vector):
     img_captions, img_name_vector = shuffle(captions, img_vector, random_state=42)
     return img_captions.reset_index(drop=True), img_name_vector.reset_index(drop=True)
 
-train_img_captions, train_img_vector = data_limiter(train_annotations, train_img_vector)
+train_img_captions = train_annotations.reset_index(drop=True)
+train_img_vector = train_img_vector.reset_index(drop=True)
+
 val_img_captions = val_annotations.reset_index(drop=True)
 test_img_captions = test_annotations.reset_index(drop=True)
 
@@ -258,7 +264,7 @@ imagenet_transform = transforms.Compose([
 # Create VGG16 model 
 # 14×14×512 feature map of the fourth convolutional layer before max pooling
 vgg_base = models.vgg16(weights = VGG16_Weights.IMAGENET1K_V1)
-vgg_model = torch.nn.Sequential(*list(vgg_base.features.children())[:23]).to(device) # stop at correct vgg16 layer 
+vgg_model = torch.nn.Sequential(*list(vgg_base.features.children())[:30]).to(device) # stop at correct vgg16 layer 
 vgg_model.eval()
 
 print("Loaded VGG16 model")

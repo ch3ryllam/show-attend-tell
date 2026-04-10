@@ -17,7 +17,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def split_sentence(sentence):
-    return list(filter(lambda x: len(x) > 0, re.split(r"\W+", sentence.lower())))
+    sentence = sentence.lower()
+    sentence = sentence.replace("<start>", " <start> ")
+    sentence = sentence.replace("<end>", " <end> ")
+    tokens = sentence.split()
+    return tokens
 
 
 class Tokenizer:
