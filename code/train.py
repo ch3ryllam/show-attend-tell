@@ -280,7 +280,7 @@ def generate_caption_beam_search(
         if len(complete_inds) > 0:
             complete_seqs.extend(seqs[complete_inds].tolist())
             length_norm = step**0.7
-            scores = top_k_scores[complete_inds].squeeze(1) / length_norm
+            scores = top_k_scores[complete_inds].view(-1) / length_norm
             complete_seqs_scores.extend(scores.tolist())
 
         k -= len(complete_inds)
@@ -291,7 +291,7 @@ def generate_caption_beam_search(
         h = h[prev_word_inds[incomplete_inds]]
         c = c[prev_word_inds[incomplete_inds]]
         encoder_out = encoder_out[:k]
-        top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
+        top_k_scores = top_k_scores[incomplete_inds].view(-1, 1)
         k_prev_words = next_word_inds[incomplete_inds].unsqueeze(1)
 
         step += 1
@@ -300,7 +300,7 @@ def generate_caption_beam_search(
 
     if not complete_seqs:
         complete_seqs = seqs.tolist()
-        complete_seqs_scores = (top_k_scores.squeeze(1) / step).tolist()
+        complete_seqs_scores = (top_k_scores.view(-1) / step).tolist()
 
     best_idx = complete_seqs_scores.index(max(complete_seqs_scores))
     best_seq = complete_seqs[best_idx]
