@@ -101,7 +101,16 @@ def cross_entropy(
         )
     else:
         # hard attention
-        loss = F.cross_entropy(preds, targets, ignore_index=pad_idx, reduction="none")
+        preds_flat = preds.view(-1, V)
+        targets_flat = targets.contiguous().view(-1)
+
+        loss = F.cross_entropy(
+          preds_flat,
+          targets_flat,
+          ignore_index=pad_idx,
+          reduction="none"
+        )
+
         loss = loss.view(B, T)
         mask = torch.arange(T, device=device).unsqueeze(0) < decode_lengths.unsqueeze(1)
         loss = loss * mask
