@@ -343,8 +343,7 @@ def train_and_validate(
         optimizer,
         mode="max",
         factor=configs["lr_factor"],
-        patience=configs["lr_patience"],
-        verbose=True,
+        patience=configs["lr_patience"]
     )
 
     early_stopping = EarlyStopping(
@@ -503,6 +502,7 @@ def train_and_validate(
                 decoder,
                 optimizer,
                 epoch,
+                scheduler
             )
 
             if early_stopping.early_stop:
@@ -599,6 +599,8 @@ if __name__ == "__main__":
         "log_interval": args.log_interval,
         "decoding_strategy": args.decoding,
         "beam_size": args.beam_size,
+        "lr_factor": args.lr_factor,
+        "lr_patience": args.lr_patience
     }
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
