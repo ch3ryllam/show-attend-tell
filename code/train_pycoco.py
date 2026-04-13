@@ -467,12 +467,23 @@ def train_and_validate(
 
                         hyp_words = decode_sequence(best_seq, tokenizer)
                     
+                        # hypothesis must be a string
                         hyp_sentence = " ".join(hyp_words) if isinstance(hyp_words, list) else str(hyp_words)
-                        ref_sentences = [" ".join(ref) for ref in val_ref_dict[img_id]]
 
-                        res[img_id] = [{"caption": hyp_sentence}]
-                        gts[img_id] = [{"caption": ref} for ref in ref_sentences]
+                        # references must be a list of strings
+                        refs = val_ref_dict[img_id]
 
+                        clean_refs = []
+                        for r in refs:
+                            if isinstance(r, dict):
+                                r = r.get("caption", "")
+                            elif isinstance(r, list):
+                                r = " ".join(r)
+                            clean_refs.append(str(r))
+
+                        res[img_id] = [hyp_sentence]
+                        gts[img_id] = clean_refs
+                       
             bleu_scorer = Bleu(4)
 
             bleu_score, _ = bleu_scorer.compute_score(gts, res)
