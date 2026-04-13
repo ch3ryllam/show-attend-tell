@@ -450,8 +450,8 @@ def train_and_validate(
                         hyp_sentence = " ".join(hyp_words)
                         ref_sentences = [" ".join(ref) for ref in val_ref_dict[img_id]]
 
-                        res[img_id] = [{"caption": hyp_sentence}]
-                        gts[img_id] = [{"caption": ref} for ref in ref_sentences]
+                        res[img_id] = [hyp_sentence]
+                        gts[img_id] = ref_sentences
 
                 elif decoding_strategy == "beam":
                     for i in indices_eval:
@@ -466,14 +466,15 @@ def train_and_validate(
                         )
 
                         hyp_words = decode_sequence(best_seq, tokenizer)
-
-                        hyp_sentence = " ".join(hyp_words)
+                    
+                        hyp_sentence = " ".join(hyp_words) if isinstance(hyp_words, list) else str(hyp_words)
                         ref_sentences = [" ".join(ref) for ref in val_ref_dict[img_id]]
 
                         res[img_id] = [{"caption": hyp_sentence}]
                         gts[img_id] = [{"caption": ref} for ref in ref_sentences]
 
             bleu_scorer = Bleu(4)
+
             bleu_score, _ = bleu_scorer.compute_score(gts, res)
             val_bleu1, val_bleu2, val_bleu3, val_bleu4 = bleu_score
 
@@ -501,8 +502,8 @@ def train_and_validate(
                 val_meteor,
                 decoder,
                 optimizer,
-                epoch,
                 scheduler
+                epoch,
             )
 
             if early_stopping.early_stop:
