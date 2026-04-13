@@ -1,5 +1,7 @@
 """
-Usage: python code/visualize.py --image_path {path_to_imag.jpg} --checkpoint checkpoints/sat_best.pth --data_dir data/flickr8k/processed
+Usage: python code/visualize.py --image_path {path_to_imag.jpg} --checkpoint checkpoints/sat_best.pth
+
+Assumes data_dir is data/flickr8k/processed
 """
 
 import argparse
@@ -21,7 +23,7 @@ def evaluate(decoder, features, tokenizer, max_length=20):
     decoder.eval()
     device = features.device
 
-    start_idx = tokenizer.word_index["<start"]
+    start_idx = tokenizer.word_index["<start>"]
     end_idx = tokenizer.word_index["<end>"]
 
     h, c = decoder.init_hidden_state(features)
@@ -80,7 +82,7 @@ def plot_attention(image_path, words, alphas):
     for t in range(num_words):
         ax = fig.add_subplot(rows, cols, t + 1)
 
-        ax.set_title(words[t], fontsize=14, backgroundcolor="white")
+        ax.set_title(words[t], fontsize=14, backgroundcolor="white", loc="left")
 
         # Plot original image first
         ax.imshow(image)
@@ -100,8 +102,8 @@ def plot_attention(image_path, words, alphas):
         black_overlay = np.zeros((img_height, img_width, 4))
 
         # Set transparency of black overlay using inverse of attention weights
-        # Multiply by 0.8 so darker areas aren't completely black
-        black_overlay[:, :, 3] = (1 - alpha_arr) * 0.8
+        # Multiply by 0.9 so darker areas aren't completely black
+        black_overlay[:, :, 3] = 1 - alpha_arr * 0.9
 
         # Draw black overlay on top of original image
         ax.imshow(black_overlay)
@@ -116,7 +118,9 @@ def parse_args():
     parser.add_argument(
         "--image_path", type=str, required=True, help="Path to input image"
     )
-    parser.add_argument("--ckpt_path", type=str, default="checkpoints/sat_best.pth")
+    parser.add_argument(
+        "--checkpoint", type=str, default="checkpoints/sat_soft_vgg.pth"
+    )
     parser.add_argument("--data_dir", type=str, default="data/flickr8k/processed")
     parser.add_argument(
         "--feature_extractor", type=str, default="vgg", choices=["vgg", "resnet"]
@@ -132,6 +136,7 @@ if __name__ == "__main__":
     # load tokenizer
     with open(os.path.join(args.data_dir, "tokenizer.pkl"), "rb") as f:
         tokenizer = pickle.load(f)
+        print("Loaded tokenizer")
 
     # intialize encoder + decoder
     encoder = Encoder(model_type=args.feature_extractor).to(device)
@@ -145,10 +150,11 @@ if __name__ == "__main__":
         attention_dim=512,
         hard_attention=args.hard_attention,
     ).to(device)
+    print("Loaded encoder/decoder")
 
     # load trained weights
-    print(f"Loading checkpoint from {args.ckpt_path}...")
-    checkpoint = torch.load(args.ckpt_path, map_location=device, weights_only=True)
+    print(f"Loading checkpoint from {args.checkpoint}...")
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=True)
     decoder.load_state_dict(checkpoint["model_state_dict"])
 
     transform = transforms.Compose(
@@ -158,6 +164,7 @@ if __name__ == "__main__":
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
+    print("Loaded checkpoint")
 
     print(f"Processing image: {args.image_path}")
     image = Image.open(args.image_path).convert("RGB")
