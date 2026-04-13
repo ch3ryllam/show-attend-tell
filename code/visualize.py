@@ -85,15 +85,14 @@ def plot_attention(image_path, words, alphas):
         # Plot original image first
         ax.imshow(image)
 
-        # 14x14 for vgg16, 7x7 for resnet50
-        grid_size = int(np.sqrt(alphas[t].shape[0]))
-        alpha_img = alphas[t].reshape(grid_size, grid_size)
+        # 14 x 14 image
+        alpha_img = alphas[t].reshape(14, 14)
         alpha_img = Image.fromarray(alpha_img)
         alpha_img = alpha_img.resize(image.size, Image.LANCZOS)
 
         alpha_arr = np.array(alpha_img)
         alpha_arr = (alpha_arr - alpha_arr.min()) / (
-            alpha_arr.max() - alpha_arr.min(() + 1e-8)
+            alpha_arr.max() - alpha_arr.min() + 1e-8
         )
 
         # Create black image with alpha transparency
