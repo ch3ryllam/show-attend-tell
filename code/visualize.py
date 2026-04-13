@@ -9,33 +9,11 @@ import math
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
-import torchvision.models as models
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-from models import Decoder
+from models import Encoder, Decoder
 from dataset import Tokenizer
-
-
-class CNNEncoder(nn.Module):
-    def __init__(self, model_type="vgg"):
-        super().__init__()
-        if model_type == "resnet":
-            resnet = models.resnet50(pretrained=True)
-            modules = list(resnet.children())[:-2]  # remove pooling and FC layers
-            self.model = nn.Sequential(*modules)
-            self.enc_dim = 2048
-        else:
-            vgg = models.vgg16(pretrained=True)
-            modules = list(vgg.features.children())
-            self.model = nn.Sequential(*modules)
-            self.enc_dim = 512
-
-    def forward(self, images):
-        out = self.model(images)  # (batch, channels, 14, 14)
-        out = out.permute(0, 2, 3, 1)
-        out = out.view(out.size(0), -1, out.size(3))
-        return out
 
 
 def evaluate(decoder, features, tokenizer, max_length=20):
@@ -94,7 +72,7 @@ def plot_attention(image_path, words, alphas):
 
     image = Image.open(image_path).convert("RGB")
     num_words = len(words)
-    cols = 5
+    cols = 4
     rows = math.ceil(num_words / cols)
 
     fig = plt.figure(figsize=(15, 3 * rows))
@@ -103,16 +81,31 @@ def plot_attention(image_path, words, alphas):
         ax = fig.add_subplot(rows, cols, t + 1)
 
         ax.set_title(words[t], fontsize=14, backgroundcolor="white")
+
+        # Plot original image first
         ax.imshow(image)
 
         # 14x14 for vgg16, 7x7 for resnet50
         grid_size = int(np.sqrt(alphas[t].shape[0]))
         alpha_img = alphas[t].reshape(grid_size, grid_size)
-
         alpha_img = Image.fromarray(alpha_img)
         alpha_img = alpha_img.resize(image.size, Image.LANCZOS)
 
-        ax.imshow(alpha_img, alpha=0.7, cmap="gray")
+        alpha_arr = np.array(alpha_img)
+        alpha_arr = (alpha_arr - alpha_arr.min()) / (
+            alpha_arr.max() - alpha_arr.min(() + 1e-8)
+        )
+
+        # Create black image with alpha transparency
+        img_width, img_height = image.size
+        black_overlay = np.zeros((img_height, img_width, 4))
+
+        # Set transparency of black overlay using inverse of attention weights
+        # Multiply by 0.8 so darker areas aren't completely black
+        black_overlay[:, :, 3] = (1 - alpha_arr) * 0.8
+
+        # Draw black overlay on top of original image
+        ax.imshow(black_overlay)
         ax.axis("off")
 
     plt.tight_layout()
@@ -142,7 +135,7 @@ if __name__ == "__main__":
         tokenizer = pickle.load(f)
 
     # intialize encoder + decoder
-    encoder = CNNEncoder(model_type=args.feature_extractor).to(device)
+    encoder = Encoder(model_type=args.feature_extractor).to(device)
     encoder.eval()
 
     decoder = Decoder(
