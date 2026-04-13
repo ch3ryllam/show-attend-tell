@@ -1,6 +1,35 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.models as models
+
+
+class Encoder(nn.Module):
+    def __init__(self, model_type="vgg"):
+        super().__init__()
+        if model_type == "resnet":
+            resnet = models.resnet50(pretrained=True)
+            modules = list(resnet.children())[:-2]  # remove pooling and FC layers
+            self.model = nn.Sequential(*modules)
+            self.enc_dim = 2048
+        elif model_type == "vgg":
+            vgg = models.vgg16(pretrained=True)
+            modules = list(vgg.features.children())[:-1]
+            self.model = nn.Sequential(*modules)
+            self.enc_dim = 512
+        else:
+            raise ValueError("Invalid model type")
+
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((14, 14))
+
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+    def forward(self, images):
+        out = self.model(images)
+        out = out.permute(0, 2, 3, 1)
+        out = out.view(out.size(0), -1, out.size(3))
+        return out
 
 
 class Attention(nn.Module):
