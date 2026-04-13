@@ -1,5 +1,5 @@
 """
-Usage: python code/train.py --data_dir data/flickr8k/processed --ckpt_path checkpoints/sat_best.pth --epochs 30 --batch_size 64 --lr 4e-4 --decoding greedy
+Usage: python code/train_pycoco.py --data_dir data/flickr8k/processed --ckpt_path checkpoints/sat_best.pth --epochs 30 --batch_size 64 --lr 4e-4 --decoding greedy
 """
 
 import argparse, pickle, sys, os, time
@@ -11,17 +11,11 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.utils.data import DataLoader
 
-import nltk
-from nltk.translate.bleu_score import corpus_bleu
-from nltk.translate.meteor_score import meteor_score
+from pycocoevalcap.bleu.bleu import Bleu
+from pycocoevalcap.meteor.meteor import Meteor
 
 from models import Decoder
 from dataset import FeatureCaptionDataset, Tokenizer
-
-try:
-    nltk.data.find("corpora/wordnet")
-except LookupError:
-    nltk.download("wordnet", quiet=True)
 
 
 class EarlyStopping:
@@ -45,6 +39,7 @@ class EarlyStopping:
         val_meteor,
         model,
         optimizer,
+        scheduler,
         epoch,
     ):
         if val_bleu4 > self.best_score:
@@ -59,6 +54,9 @@ class EarlyStopping:
                     "epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
+                    "scheduler_state_dict": (
+                        scheduler.state_dict() if scheduler else None
+                    ),
                     "best_bleu": self.best_score,
                     "val_bleu1": val_bleu1,
                     "val_bleu2": val_bleu2,
@@ -313,7 +311,7 @@ def print_best_checkpoint_metrics(path):
         print(f"No checkpoint found at {path}")
         return
 
-    checkpoint = torch.load(path, map_location="cpu", weights_only = False)
+    checkpoint = torch.load(path, map_location="cpu", weights_only=True)
     print("\n=== Best Checkpoint Metrics ===")
     print(f"Epoch: {checkpoint['epoch']}")
     print(f"BLEU-1: {checkpoint['val_bleu1']:.4f}")
@@ -334,6 +332,15 @@ def train_and_validate(
     resume_ckpt=None,
 ):
     optimizer = torch.optim.RMSprop(decoder.parameters(), lr=configs["lr"])
+
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="max",
+        factor=configs["lr_factor"],
+        patience=configs["lr_patience"],
+        verbose=True,
+    )
+
     early_stopping = EarlyStopping(
         patience=configs["patience"], path=configs["checkpoint_path"]
     )
@@ -346,8 +353,13 @@ def train_and_validate(
     start_epoch = 0
     if resume_ckpt and os.path.exists(resume_ckpt):
         checkpoint = torch.load(resume_ckpt)
+
         decoder.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+        if "scheduler_state_dict" in checkpoint:
+            scheduler.load_state_dict(checkpoint["scheduler_state_dic"])
+
         start_epoch = checkpoint["epoch"] + 1
         print(
             f"Resumed training from epoch {start_epoch} with BLEU-4 {checkpoint['best_bleu']:.4f}"
@@ -402,8 +414,9 @@ def train_and_validate(
         avg_train_loss = train_loss / (batch_idx + 1)
 
         decoder.eval()
-        references = []
-        hypotheses = []
+
+        gts = {}  # ground ruth
+        res = {}  # results
 
         evaluated_images = set()
 
@@ -428,10 +441,12 @@ def train_and_validate(
                     for i, img_id in enumerate(img_ids_eval):
                         evaluated_images.add(img_id)
                         hyp_words = decode_sequence(seqs[i], tokenizer)
-                        ref_word_list = val_ref_dict[img_id]
 
-                        hypotheses.append(hyp_words)
-                        references.append(ref_word_list)
+                        hyp_sentence = " ".join(hyp_words)
+                        ref_sentences = [" ".join(ref) for ref in val_ref_dict[img_id]]
+
+                        res[img_id] = [{"caption": hyp_sentence}]
+                        gts[img_id] = [{"caption": ref} for ref in ref_sentences]
 
                 elif decoding_strategy == "beam":
                     for i in indices_eval:
@@ -446,31 +461,19 @@ def train_and_validate(
                         )
 
                         hyp_words = decode_sequence(best_seq, tokenizer)
-                        ref_word_list = val_ref_dict[img_id]
 
-                        hypotheses.append(hyp_words)
-                        references.append(ref_word_list)
+                        hyp_sentence = " ".join(hyp_words)
+                        ref_sentences = [" ".join(ref) for ref in val_ref_dict[img_id]]
 
-            val_bleu1 = corpus_bleu(references, hypotheses, weights=(1.0, 0, 0, 0))
-            val_bleu2 = corpus_bleu(references, hypotheses, weights=(0.5, 0.5, 0, 0))
-            val_bleu3 = corpus_bleu(
-                references, hypotheses, weights=(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 0)
-            )
-            val_bleu4 = corpus_bleu(
-                references, hypotheses, weights=(0.25, 0.25, 0.25, 0.25)
-            )
+                        res[img_id] = [{"caption": hyp_sentence}]
+                        gts[img_id] = [{"caption": ref} for ref in ref_sentences]
 
-            meteor_scores = []
-            for ref_list, hyp_words in zip(references, hypotheses):
-                hyp_sentence = " ".join(hyp_words)
-                ref_sentences = [" ".join(ref) for ref in ref_list]
-                meteor_scores.append(
-                    meteor_score(
-                        [r.split() for r in ref_sentences], hyp_sentence.split()
-                    )
-                )
+            bleu_scorer = Bleu(4)
+            bleu_score, _ = bleu_scorer.compute_score(gts, res)
+            val_bleu1, val_bleu2, val_bleu3, val_bleu4 = bleu_score
 
-            val_meteor = np.mean(meteor_scores)
+            meteor_scorer = Meteor()
+            val_meteor, _ = meteor_scorer.compute_score(gts, res)
 
             epoch_time = time.time() - start_time
             print(
@@ -539,6 +542,12 @@ def parse_args():
         default=4e-4,
     )
     parser.add_argument("--patience", type=int, default=5)
+    parser.add_argument(
+        "--lr_patience", type=int, default=3, help="Epochs to wait before decaying LR"
+    )
+    parser.add_argument(
+        "--lr_factor", type=float, default=0.8, help="Factor by which LR is reduced"
+    )
     parser.add_argument(
         "--lambda_reg",
         type=float,
