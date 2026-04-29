@@ -513,7 +513,7 @@ def train_and_validate(
                 val_meteor,
                 decoder,
                 optimizer,
-                scheduler
+                scheduler,
                 epoch,
             )
 
