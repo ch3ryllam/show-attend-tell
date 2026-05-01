@@ -27,6 +27,7 @@ class Encoder(nn.Module):
 
     def forward(self, images):
         out = self.model(images)
+        out = self.adaptive_pool(out)
         out = out.permute(0, 2, 3, 1)
         out = out.view(out.size(0), -1, out.size(3))
         return out

@@ -1,5 +1,11 @@
+# Dataset
 data/flickr8k/Images/
 data/flickr8k/processed/
+
+# Visualizations
+attention_outputs
+
+checkpoints
 
 __pycache__/
 *.pyc
