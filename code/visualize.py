@@ -1,13 +1,13 @@
 """
 Soft attention:
 python code/visualize.py \
-  --image_path data/flickr8k/Images/248994078_a9257f448b.jpg \
+  --image_path data/flickr8k/Images/262439544_e71cd26b24.jpg \
   --checkpoint checkpoints/soft_vgg_5.pth \
   --feature_extractor vgg
 
 Hard attention:
 python code/visualize.py \
-  --image_path data/flickr8k/Images/248994078_a9257f448b.jpg \
+  --image_path data/flickr8k/Images/262439544_e71cd26b24.jpg \
   --checkpoint checkpoints/hard_vgg_3.pth \
   --feature_extractor vgg \
   --hard_attention
@@ -33,7 +33,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from dataset import Tokenizer
+from preprocess import Tokenizer
 from models import Encoder, Decoder
 
 __main__.Tokenizer = Tokenizer
@@ -201,7 +201,7 @@ def parse_args():
     parser.add_argument("--feature_extractor", default="vgg", choices=["vgg", "resnet"])
     parser.add_argument("--hard_attention", action="store_true")
     parser.add_argument("--max_length", type=int, default=20)
-    parser.add_argument("--output_dir", default="attention_outputs")
+    parser.add_argument("--output_dir", default="results")
 
     return parser.parse_args()
 

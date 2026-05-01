@@ -1,5 +1,11 @@
 """
-Usage: python code/train_pycoco.py --data_dir data/flickr8k/processed --ckpt_path checkpoints/sat_best.pth --epochs 30 --batch_size 64 --lr 4e-4 --decoding greedy
+python code/train.py \
+    --data_dir data/flickr8k/processed \
+    --ckpt_path checkpoints/sat_best.pth \
+    --epochs 30 \
+    --batch_size 64 \
+    --lr 4e-4 \
+    --decoding greedy
 """
 
 import argparse, pickle, sys, os, time
@@ -15,7 +21,7 @@ from pycocoevalcap.bleu.bleu import Bleu
 from pycocoevalcap.meteor.meteor import Meteor
 
 from models import Decoder
-from dataset import FeatureCaptionDataset, Tokenizer
+from preprocess import FeatureCaptionDataset, Tokenizer
 
 
 class EarlyStopping:
@@ -343,7 +349,7 @@ def train_and_validate(
         optimizer,
         mode="max",
         factor=configs["lr_factor"],
-        patience=configs["lr_patience"]
+        patience=configs["lr_patience"],
     )
 
     early_stopping = EarlyStopping(
@@ -466,9 +472,13 @@ def train_and_validate(
                         )
 
                         hyp_words = decode_sequence(best_seq, tokenizer)
-                    
+
                         # hypothesis must be a string
-                        hyp_sentence = " ".join(hyp_words) if isinstance(hyp_words, list) else str(hyp_words)
+                        hyp_sentence = (
+                            " ".join(hyp_words)
+                            if isinstance(hyp_words, list)
+                            else str(hyp_words)
+                        )
 
                         # references must be a list of strings
                         refs = val_ref_dict[img_id]
@@ -483,7 +493,7 @@ def train_and_validate(
 
                         res[img_id] = [hyp_sentence]
                         gts[img_id] = clean_refs
-                       
+
             bleu_scorer = Bleu(4)
 
             bleu_score, _ = bleu_scorer.compute_score(gts, res)
@@ -612,7 +622,7 @@ if __name__ == "__main__":
         "decoding_strategy": args.decoding,
         "beam_size": args.beam_size,
         "lr_factor": args.lr_factor,
-        "lr_patience": args.lr_patience
+        "lr_patience": args.lr_patience,
     }
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
