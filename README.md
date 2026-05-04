@@ -2,13 +2,26 @@
 
 Cheryl Lam, Yanwei Liu
 
-This repository contains a reimplementation of [Show, Attend and Tell: Neural Image Caption Generation with Visual Attention](https://arxiv.org/abs/1502.03044) (Xu et al., 2015). We reproduce both soft and hard attention variants on the Flickr8k dataset, and additionally evaluate ResNet-50 features as an alternative to the original VGG-19 encoder.
+# Introduction
+
+This repository contains a reimplementation of [Show, Attend and Tell: Neural Image Caption Generation with Visual Attention](https://arxiv.org/abs/1502.03044) (Xu et al., 2015). 
+
+Prior work approached image captioning using an encoder-decoder framework, where a CNN encodes the image into a vectorial representation that is then passed to a RNN to generate the caption. However, these approaches represented the image as a **single static feature vector** from the convnet, compressing away the spatial information that could be useful for richer, more descriptive captions. **Show, Attend, Tell** introduced attention into the encoder-decoder framework, allowing the decoder to dynamically focus on differenet spatial regions of the image as it generates each word; that is, the model learns *where to look* at each timestep. The paper presents two variants: **soft attention**, trained end-to-end via backpropagation; and **hard attention**, trained with the REINFORCE algorithm. In addition to improving performance over prior captioning models, the attention mechanism provides **interpretability**, as the learned attention weights can be visualized to show which parts of the image the model attends to while generating each word.
 
 ---
 
 ## Chosen Result
 
-We reproduce **Table 1** from the original paper: BLEU-1 through BLEU-4 and METEOR scores for soft and hard attention models trained on Flickr8k. These metrics are the primary evidence in the paper that attention-based captioning outperforms non-attention baselines. We additionally compare VGG-19 vs. ResNet-50 as feature extractors to evaluate the impact of encoder representation on captioning quality.
+We reproduce **Table 1** from the original paper: BLEU-1 through BLEU-4 and METEOR scores for soft and hard attention models trained on Flickr8k. The paper's reported scores for Flickr8k are:
+
+| Model | BLEU-1 | BLEU-2 | BLEU-3 | BLEU-4 | METEOR |
+|---|---|---|---|---|---|
+| Soft Attention | 67 | 44.8 | 29.9 | 19.5 | 18.93 |
+| Hard Attention | 67 | 45.7 | 31.4 | 21.3 | 20.30 |
+
+These metrics are the primary evidence that attention-based captioning outperforms prior methods across all metrics. We additionally compare VGG-19 vs. ResNet-50 as feature extractors to evaluate the impact of encoder representation on captioning quality.
+
+
 
 ---
 
@@ -40,19 +53,19 @@ show-attend-tell/
 
 ## Reimplementation Details
 
-**Architecture.** We implement the encoder-decoder framework from the paper. The encoder is a pretrained CNN that produces a set of spatial feature vectors `a = {a1, ..., aL}`. The decoder is an LSTM that generates one word per timestep, conditioned on a context vector derived from attention over the encoder features.
+**Architecture.** We implement the encoder-decoder framework from the paper. The encoder is a pretrained CNN producing annotation vectors `a = {a1, ..., aL}`, one per spatial location. The decoder is an LSTM that generates one word per timestep conditioned on a context vector `zˆt` derived from attention over the encoder features, the previous hidden state, and the previous word.
 
 **Encoder.** We support two feature extractors, both pretrained on ImageNet and frozen during training:
 - **VGG-19** (original paper): features extracted before the final pooling layer → 14×14 spatial map, `L=196`, `D=512`
 - **ResNet-50** (our addition): features from the final convolutional block → 7×7 spatial map, `L=49`, `D=2048`
 
-**Soft Attention.** The context vector is a weighted sum over spatial features. It is fully differentiable and trained end-to-end with backpropagation. We include the doubly stochastic regularization term from the paper to encourage the model to attend to all image regions over the course of generation.
+**Soft Attention.** The context vector is a weighted sum over spatial features. It is fully differentiable and trained end-to-end via backpropagation. We include the doubly stochastic regularization term from the paper to encourage the model to attend to all image regions over the course of generation as it was shown to improve BLEU. A learned gating scalar further modulates the context vector.
 
-**Hard Attention.** The attention location is treated as a latent variable sampled from a categorical distribution. We train with REINFORCE using a moving average baseline and entropy regularization to reduce variance. With probability 0.5 during training, the sampled location is replaced with its expected value (soft context) to further stabilize gradients.
+**Hard Attention.** Attention location is treated as a latent variable, and hard attention is trained by maximizing a variational lower bound on the marginal log-likelihood (Equations 10–12 in the paper), equivalent to REINFORCE. Variance is reduced via a moving average baseline, an entropy regularization term on the attention distribution, and with probability 0.5 replacing the sampled location with its expected value.
 
-**Decoder.** Output is computed via a deep output layer (Equation 7 in the paper) combining hidden state, context vector, and previous word embedding.
+**Decoder.** Output is computed via a deep output layer (Equation 7 in the paper).
 
-**Training.** We use the Adam optimizer (found to perform comparably to the paper's RMSProp). Early stopping is based on validation BLEU-4. Beam search with beam size 7 is used at inference. The vocabulary is capped at the top 10,000 words from training captions.
+**Training.** The original paper used RMSProp for Flickr8k. We found Adam performed comparably. Early stopping is based on validation BLEU-4, consistent with the paper. Beam search with beam size 7 is used at inference.
 
 **Dataset.** We use Flickr8k, which consists of 8,000 images with 5 human-annotated captions each, using the standard train/val/test splits.
 
@@ -65,9 +78,6 @@ show-attend-tell/
 ```bash
 pip install -r requirements.txt
 ```
-
-We trained on Google Colab using a T4 GPU, which took approximately 5 hours to complete.
-
 ### 2. Dataset
 
 Download the Flickr8k dataset and place it under `data/flickr8k/` with the following structure:
@@ -90,6 +100,8 @@ python code/preprocess.py
 ```
 
 ### 4. Training
+
+We trained on Google Colab using a T4 GPU, which took approximately 5 hours to complete.
 
 Train a soft attention model with VGG-19 features:
 
@@ -149,8 +161,6 @@ Outputs are saved to `results/`.
 **Key findings:**
 - ResNet-50 outperformed VGG-19 across all metrics.
 - Hard attention was substantially more difficult to train than soft attention, requiring more epochs and careful hyperparameter tuning due to its stochastic nature.
-- Attention weights provide meaningful interpretability — heatmaps show the model attending to relevant image regions.
-
 
 
 **Attention visualizations:**
@@ -163,7 +173,7 @@ An important contribution of the paper is that the attention mechanism provides 
 
 ## Conclusion
 
-We successfully reimplemented both soft and hard attention variants from Show, Attend, Tell. Soft attention was straightforward to train end-to-end; hard attention was more difficult to train due to its stochastic nature. ResNet-50 features consistently outperformed VGG-19, demonstrating that encoder quality has a strong impact on captioning performance. This project also have a deep apprecaition how much the field has advanced since 2015 — modern foundation models now solve this task trivially — but also gave us a deep appreciation for the foundational ideas introduced in this paper.
+We successfully reimplemented both soft and hard attention variants from Show, Attend, Tell. Soft attention was straightforward to train end-to-end; hard attention was more difficult to train due to its stochastic nature. ResNet-50 features consistently outperformed VGG-19, demonstrating that encoder quality has a strong impact on captioning performance.
 
 ---
 
