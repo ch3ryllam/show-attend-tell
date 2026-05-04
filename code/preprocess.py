@@ -9,7 +9,7 @@ from PIL import Image
 from collections import Counter
 from sklearn.utils import shuffle
 from torchvision import models, transforms
-from torchvision.models import VGG16_Weights, ResNet50_Weights
+from torchvision.models import VGG19_Weights, ResNet50_Weights
 
 from torch.utils.data import Dataset, DataLoader
 
@@ -265,18 +265,18 @@ def main():
         ]
     )
 
-    # Create VGG16 model
+    # Create VGG19 model
     # 14x14x512 feature map of the fourth convolutional layer before max pooling
-    vgg_base = models.vgg16(weights=VGG16_Weights.IMAGENET1K_V1)
-    vgg_model = torch.nn.Sequential(*list(vgg_base.features.children())[:30]).to(
+    vgg_base = models.vgg19(weights=VGG19_Weights.IMAGENET1K_V1)
+    vgg_model = torch.nn.Sequential(*list(vgg_base.features.children())[:36]).to(
         device
-    )  # stop at correct vgg16 layer
+    )  # stop at correct vgg19 layer
     vgg_model.eval()
 
-    print("Loaded VGG16 model")
+    print("Loaded VGG19 model")
 
-    # Extracts VGG16 features
-    def extract_vgg16_features(img_path):
+    # Extracts VGG19 features
+    def extract_vgg19_features(img_path):
         img = Image.open(img_path).convert("RGB")
         img = imagenet_transform(img).unsqueeze(0).to(device)
 
@@ -293,19 +293,19 @@ def main():
     val_img_vector_uniq = val_df.Path.drop_duplicates().tolist()
     test_img_vector_uniq = test_df.Path.drop_duplicates().tolist()
 
-    # Extract VGG16 features from Flickr8k images
-    print("Extracting VGG16 features...")
+    # Extract VGG19 features from Flickr8k images
+    print("Extracting VGG19 features...")
 
-    train_vgg = extract_features(train_img_vector_uniq, extract_vgg16_features)
-    val_vgg = extract_features(val_img_vector_uniq, extract_vgg16_features)
-    test_vgg = extract_features(test_img_vector_uniq, extract_vgg16_features)
+    train_vgg = extract_features(train_img_vector_uniq, extract_vgg19_features)
+    val_vgg = extract_features(val_img_vector_uniq, extract_vgg19_features)
+    test_vgg = extract_features(test_img_vector_uniq, extract_vgg19_features)
 
     print(
         "Sample VGG feature shape (should be 196 x 512):",
         next(iter(train_vgg.values())).shape,
     )
 
-    # Create ResNet50 model (for comparison to VGG16)
+    # Create ResNet50 model (for comparison to VGG19)
     resnet_base = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
     resnet_model = torch.nn.Sequential(*list(resnet_base.children())[:-2]).to(
         device
@@ -342,12 +342,12 @@ def main():
     # Mini-batches = 64
     BATCH_SIZE = 64
 
-    # Datasets with VGG16 feature extractions (used in paper)
+    # Datasets with VGG19 feature extractions (used in paper)
     vgg_train_dataset = FeatureCaptionDataset(train_df, train_cap_vector, train_vgg)
     vgg_val_dataset = FeatureCaptionDataset(val_df, val_cap_vector, val_vgg)
     vgg_test_dataset = FeatureCaptionDataset(test_df, test_cap_vector, test_vgg)
 
-    # VGG16 Dataloaders
+    # VGG19 Dataloaders
     vgg_train_dataloader = DataLoader(
         vgg_train_dataset, batch_size=BATCH_SIZE, shuffle=True
     )
@@ -358,7 +358,7 @@ def main():
         vgg_test_dataset, batch_size=BATCH_SIZE, shuffle=False
     )
 
-    print("Created dataloader with VGG16")
+    print("Created dataloader with VGG19")
 
     # Datasets with ResNet50 feature extractions (for comparison)
     resnet_train_dataset = FeatureCaptionDataset(
