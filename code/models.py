@@ -13,7 +13,7 @@ class Encoder(nn.Module):
             self.model = nn.Sequential(*modules)
             self.enc_dim = 2048
         elif model_type == "vgg":
-            vgg = models.vgg16(pretrained=True)
+            vgg = models.vgg19(pretrained=True)
             modules = list(vgg.features.children())[:-1]
             self.model = nn.Sequential(*modules)
             self.enc_dim = 512
