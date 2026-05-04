@@ -120,16 +120,31 @@ class Decoder(nn.Module):
 
             else:
                 if self.training:
-                    dist = torch.distributions.Categorical(alpha)
-                    sampled_idx = dist.sample()
-                    log_probs[:batch_size_T, t] = dist.log_prob(sampled_idx)
-                    batch_idx = torch.arange(batch_size_T).to(encoder_out.device)
-                    context = encoder_out[batch_idx, sampled_idx, :]
+                    use_expected_context = (
+                        torch.rand(1, device=encoder_out.device).item() < 0.5
+                    )
+
+                    if use_expected_context:
+                        # With probability 0.5, use expected context to reduce variance
+                        context = (alpha.unsqueeze(2) * encoder_out[:batch_size_T]).sum(
+                            dim=1
+                        )
+                        log_probs[:batch_size_T, t] = 0.0
+                    else:
+                        # Otherwise, sample one location for hard attention
+                        dist = torch.distributions.Categorical(alpha)
+                        sampled_idx = dist.sample()
+                        log_probs[:batch_size_T, t] = dist.log_prob(sampled_idx)
+
+                        batch_idx = torch.arange(
+                            batch_size_T, device=encoder_out.device
+                        )
+                        context = encoder_out[batch_idx, sampled_idx, :]
 
                 else:
                     # At inference, pick the most likely location
-                    _, sampled_idx = alpha.max(dim=1)
-                    batch_idx = torch.arange(batch_size_T).to(encoder_out.device)
+                    sampled_idx = alpha.argmax(dim=1)
+                    batch_idx = torch.arange(batch_size_T, device=encoder_out.device)
                     context = encoder_out[batch_idx, sampled_idx, :]
 
             lstm_input = torch.cat([embeddings[:batch_size_T, t, :], context], dim=1)
