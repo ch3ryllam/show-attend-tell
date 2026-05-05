@@ -150,12 +150,12 @@ Outputs are saved to `results/`.
 
 | Model | BLEU-1 | BLEU-2 | BLEU-3 | BLEU-4 | METEOR |
 |---|---|---|---|---|---|
-| Paper (Soft, VGG-19) | — | — | — | — | — |
-| Paper (Hard, VGG-19) | — | — | — | — | — |
-| Ours (Soft, VGG-19) | — | — | — | — | — |
-| Ours (Hard, VGG-19) | — | — | — | — | — |
-| Ours (Soft, ResNet-50) | — | — | — | — | — |
-| Ours (Hard, ResNet-50) | — | — | — | — | — |
+| Paper (Soft, VGG-19) | 67 | 44.8 | 29.9 | 19.5 | 18.93 |
+| Paper (Hard, VGG-19) | 67 | 45.7 | 31.4 | 21.3 | 20.30 |
+| Ours (Soft, VGG-19) | 65.67 | 45.67 | 32.14 | 22.61 | 20.72 |
+| Ours (Hard, VGG-19) | 64.72 | 43.57 | 29.87 | 20.46 | 19.28 |
+| **Ours (Soft, ResNet-50)** | **68.01** | **48.30** | **34.39** | **24.20** | **21.66** |
+| **Ours (Hard, ResNet-50)** | **68.31** | **48.75** | **34.67** | **24.40** | **22.04** |
 
 
 **Key findings:**
