@@ -2,18 +2,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
+from torchvision.models import vgg19, VGG19_Weights, resnet50, ResNet50_Weights
 
 
 class Encoder(nn.Module):
     def __init__(self, model_type="vgg"):
         super().__init__()
         if model_type == "resnet":
-            resnet = models.resnet50(pretrained=True)
+            resnet = models.resnet50(weights=ResNet50_Weights.DEFAULT)
             modules = list(resnet.children())[:-2]  # remove pooling and FC layers
             self.model = nn.Sequential(*modules)
             self.enc_dim = 2048
         elif model_type == "vgg":
-            vgg = models.vgg19(pretrained=True)
+            vgg = models.vgg19(weights=VGG19_Weights.DEFAULT)
             modules = list(vgg.features.children())[:-1]
             self.model = nn.Sequential(*modules)
             self.enc_dim = 512
