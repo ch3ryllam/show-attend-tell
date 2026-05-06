@@ -29,8 +29,6 @@ These metrics are the primary evidence that attention-based captioning outperfor
 
 ## Repository Structure
 
-## Repository Structure
-
 - `code/`
   - `models.py` - Encoder, attention, and decoder modules
   - `preprocess.py` - Data preprocessing and feature extraction
