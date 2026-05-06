@@ -102,7 +102,7 @@ Run each cell sequentially. The notebook:
 
 Training was performed on Google Colab using a T4 GPU. Each model took approximately **3 hours** to train. 
 
-Our checkpoints can be downloaded here: <https://drive.google.com/drive/folders/1jysQ4KbFIjmHAUBnZJxiC9zjB99msKLI?usp=sharing>. Downloaded checkpoints should be placed under:```checkpoints/```
+Our checkpoints can be downloaded here: <https://drive.google.com/drive/folders/1jysQ4KbFIjmHAUBnZJxiC9zjB99msKLI?usp=sharing>. 
  
 
 
