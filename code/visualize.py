@@ -1,18 +1,3 @@
-"""
-Soft attention:
-python code/visualize.py \
-  --image_path data/flickr8k/Images/262439544_e71cd26b24.jpg \
-  --checkpoint checkpoints/soft_vgg_5.pth \
-  --feature_extractor vgg
-
-Hard attention:
-python code/visualize.py \
-  --image_path data/flickr8k/Images/262439544_e71cd26b24.jpg \
-  --checkpoint checkpoints/hard_vgg_3.pth \
-  --feature_extractor vgg \
-  --hard_attention
-"""
-
 import argparse
 import math
 import os
@@ -35,8 +20,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from preprocess import Tokenizer
 from models import Encoder, Decoder
-
-__main__.Tokenizer = Tokenizer
 
 
 def load_tokenizer(path):
