@@ -6,9 +6,9 @@ Cheryl Lam, Yanwei Liu
 
 This repository contains a reimplementation of [Show, Attend and Tell: Neural Image Caption Generation with Visual Attention](https://arxiv.org/abs/1502.03044) (Xu et al., 2015). 
 
-Previous work such as *Show and Tell* approached image captioning using an encoder-decoder framework, where a CNN encodes the image into a vectorial representation that is then passed to an RNN to generate the caption. However, this approach represented the image as a single static feature vector from the convnet, compressing away the spatial information that may be useful for generating more detailed captions.
+Previous work such as Show and Tell [1] approached image captioning using an encoder-decoder framework, where a CNN encodes the image into a vectorial representation that is then passed to an RNN to generate the caption. However, this approach represented the image as a single static feature vector from the convnet, compressing away the spatial information that may be useful for generating more detailed captions.
 
-In **Show, Attend and Tell**, Xu et al. introduce attention into the encoder-decoder framework, enabling the decoder to dynamically focus on relevant spatial regions while producing each word. The paper presents two variants: **soft attention**, which is fully differentiable and trained via backpropagation; and **hard attention**, which samples discrete spatial locations and is trained using REINFORCE. Both variants were validated against non-attention baseline models on Flickr8k, Flickr30k, and MS-COCO, demonstrating improved performance.
+In **Show, Attend and Tell** [2], Xu et al. introduce attention into the encoder-decoder framework, enabling the decoder to dynamically focus on relevant spatial regions while producing each word. The paper presents two variants: **soft attention**, which is fully differentiable and trained via backpropagation; and **hard attention**, which samples discrete spatial locations and is trained using REINFORCE. Both variants were validated against non-attention baseline models on Flickr8k, Flickr30k, and MS-COCO, demonstrating improved performance.
 
 ---
 
