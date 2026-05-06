@@ -4,7 +4,7 @@ Cheryl Lam, Yanwei Liu
 
 # Introduction
 
-This repository contains a reimplementation of [Show, Attend and Tell: Neural Image Caption Generation with Visual Attention](https://arxiv.org/abs/1502.03044) (Xu et al., 2015). 
+This repository contains a reimplementation of [Show, Attend and Tell: Neural Image Caption Generation with Visual Attention](https://arxiv.org/abs/1502.03044).
 
 Previous work such as Show and Tell [1] approached image captioning using an encoder-decoder framework, where a CNN encodes the image into a vectorial representation that is then passed to an RNN to generate the caption. However, this approach represented the image as a single static feature vector from the convnet, compressing away the spatial information that may be useful for generating more detailed captions.
 
@@ -100,6 +100,10 @@ Run each cell sequentially. The notebook:
 - trains soft and hard attention models,
 - saves checkpoints to `checkpoints/`,
 - and generates attention visualizations.
+
+
+Training was performed on Google Colab using a T4 GPU. Each model took approximately **3 hours** to train. Our checkpoints can be downloaded here: <https://drive.google.com/drive/folders/1jysQ4KbFIjmHAUBnZJxiC9zjB99msKLI?usp=sharing>. Downloaded checkpoints should be placed under:```checkpoints/```
+ 
 
 
 ### 4. Visualization
