@@ -97,12 +97,12 @@ code/quick_run.ipynb
 Run each cell sequentially. The notebook:
 - preprocesses Flickr8k,
 - extracts VGG-19 and ResNet-50 features,
-- trains soft and hard attention models,
-- saves checkpoints to `checkpoints/`,
-- and generates attention visualizations.
+- trains soft and hard attention models, and
+- saves checkpoints to `checkpoints/`.
 
+Training was performed on Google Colab using a T4 GPU. Each model took approximately **3 hours** to train. 
 
-Training was performed on Google Colab using a T4 GPU. Each model took approximately **3 hours** to train. Our checkpoints can be downloaded here: <https://drive.google.com/drive/folders/1jysQ4KbFIjmHAUBnZJxiC9zjB99msKLI?usp=sharing>. Downloaded checkpoints should be placed under:```checkpoints/```
+Our checkpoints can be downloaded here: <https://drive.google.com/drive/folders/1jysQ4KbFIjmHAUBnZJxiC9zjB99msKLI?usp=sharing>. Downloaded checkpoints should be placed under:```checkpoints/```
  
 
 
