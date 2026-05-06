@@ -144,7 +144,7 @@ Outputs are saved to `results/`.
 **Findings:**
 - Our soft attention VGG implementation exceeds the paper’s reported BLEU-4 and METEOR scores, while hard attention VGG falls slightly below the paper's rsults.
 - Hard attention was substantially harder to train because stochastic attention sampling and REINFORCE introduce high variance, making optimization more sensitive to hyperparameters.
-- Replacing VGG-19 with ResNet-50 improved both soft and hard attention performance across all metrics.ResNet-50 improved BLEU-4 by approximately **1.6** for soft attention and **3.9** for hard attention over our VGG baselines, likely because the deeper residual encoder produces more discriminative semantic features.
+- Replacing VGG-19 with ResNet-50 improved both soft and hard attention performance across all metrics. ResNet-50 improved BLEU-4 by approximately **1.6** for soft attention and **3.9** for hard attention over our VGG baselines, likely because the deeper residual encoder produces more discriminative semantic features.
 - With a stronger encoder, hard attention nearly matched soft attention in BLEU-4 and slightly exceeded it in METEOR, suggesting that the performance gap between the two attention variants narrows when visual features improve.
 
 **Attention visualizations:**
