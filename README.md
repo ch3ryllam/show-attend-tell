@@ -6,23 +6,22 @@ Cheryl Lam, Yanwei Liu
 
 This repository contains a reimplementation of [Show, Attend and Tell: Neural Image Caption Generation with Visual Attention](https://arxiv.org/abs/1502.03044).
 
-Previous work such as Show and Tell [1] approached image captioning using an encoder-decoder framework, where a CNN encodes the image into a vectorial representation that is then passed to an RNN to generate the caption. However, this approach represented the image as a single static feature vector from the convnet, compressing away the spatial information that may be useful for generating more detailed captions.
+Previous work such as Show and Tell [1] approached image captioning using an encoder-decoder framework, where a CNN encodes the image into a fixed vector representation that is then passed to a RNN to generate the caption. However, representing the image as a single static feature vector from the convnet creates an information bottleneck.
 
-In **Show, Attend and Tell** [2], Xu et al. introduce attention into the encoder-decoder framework, enabling the decoder to dynamically focus on relevant spatial regions while producing each word. The paper presents two variants: **soft attention**, which is fully differentiable and trained via backpropagation; and **hard attention**, which samples discrete spatial locations and is trained using REINFORCE. Both variants were validated against non-attention baseline models on Flickr8k, Flickr30k, and MS-COCO, demonstrating improved performance.
+**Show, Attend and Tell** [2] addresses this limitation by introducing an attention mechanism into the encoder-decoder framework, enabling the decoder to dynamically focus on relevant spatial regions while producing each word. Xu et al. present two variants: **soft attention**, which is fully differentiable and trained via backpropagation; and **hard attention**, which samples discrete spatial locations and is trained using REINFORCE. The paper demonstrates improved performance over non-attention baselines on Flickr8k, Flickr30k, and MS-COCO.
 
 ---
 
 ## Chosen Result
 
-We reproduce **Table 1** from the original paper: BLEU-1 through BLEU-4 and METEOR scores for soft and hard attention models trained on Flickr8k. The paper's reported scores for Flickr8k are:
+We reproduce the Flickr8k results reported in Table 1 of the original paper, evaluating both soft and hard attention using BLEU-1 through BLEU-4 and METEOR:
 
 | Model | BLEU-1 | BLEU-2 | BLEU-3 | BLEU-4 | METEOR |
 |---|---|---|---|---|---|
 | Soft Attention | 67 | 44.8 | 29.9 | 19.5 | 18.93 |
 | Hard Attention | 67 | 45.7 | 31.4 | 21.3 | 20.30 |
 
-These metrics are the primary evidence that attention-based captioning outperforms prior methods across all metrics. Beyond the original paper, we substitute the original VGG-19 features with ResNet-50 features to evaluate the impact of a stronger feature extractor.
-
+These metrics serve as the primary quantitative evidence that attention-based captioning improves over prior methods. Beyond reproducing the original VGG-19-based architecture, we additionally replace the encoder with ResNet-50 to evaluate the impact of a stronger visual feature extractor.
 
 
 ---
@@ -32,7 +31,7 @@ These metrics are the primary evidence that attention-based captioning outperfor
 - `code/`
   - `models.py` - Encoder, attention, and decoder modules
   - `preprocess.py` - Data preprocessing and feature extraction
-  - `quick_run.py`- Notebook used for training
+  - `quick_run.ipynb`- Notebook used for training
   - `train.py` - Training loop for soft/hard attention
   - `visualize.py` - Attention heatmap visualizations
 
@@ -45,21 +44,20 @@ These metrics are the primary evidence that attention-based captioning outperfor
 
 ## Reimplementation Details
 
-**Architecture.** We implement the encoder-decoder framework from the paper. The encoder is a pretrained CNN producing annotation vectors `a = {a1, ..., aL}`, one per spatial location. The decoder is an LSTM that generates one word per timestep conditioned on a context vector `zˆt` derived from attention over the encoder features, the previous hidden state, and the previous word.
+**Architecture.** A pretrained CNN encoder extracts spatial visual features, while an LSTM decoder generates captions one word at a time conditioned on the previous hidden state, previous word, and an attention-derived context vector $\hat{z}_t.$
 
-**Encoder.** We support two feature extractors, both pretrained on ImageNet and frozen during training:
-- **VGG-19** (original paper): features extracted before the final pooling layer → 14×14 spatial map, `L=196`, `D=512`
-- **ResNet-50** (our addition): features from the final convolutional block → 7×7 spatial map, `L=49`, `D=2048`
+**Encoder.** We evaluate two feature extractors, both pretrained on ImageNet and frozen during training:
+- **VGG-19** (original paper)
+- **ResNet-50** (our extension)
 
-**Soft Attention.** The context vector is a weighted sum over spatial features. It is fully differentiable and trained end-to-end via backpropagation. We include the doubly stochastic regularization term from the paper to encourage the model to attend to all image regions over the course of generation.
+**Soft Attention.** The context vector is computed as a weighted sum over spatial features. This variant is fully differentiable and trained end-to-end via backpropagation. We additionally include the doubly stochastic regularization term from the paper to encourage attention over all image regions during generation.
 
-**Hard Attention.** At each timestep, the model samples a single spatial location from the attention distribution instead of computing a weighted average over all regions. Because this sampling operation is non-differentiable, the model is trained using REINFORCE with a moving-average baseline and entropy regularization to reduce variance and encourage exploration.
+**Hard Attention.** At each timestep, the model samples a single spatial location instead of attending over all regions. Because sampling is non-differentiable, the model is trained using REINFORCE with a moving-average baseline and entropy regularization for variance reduction and exploration.
 
-**Decoder.** Output is computed via a deep output layer.
+**Training.** We use teacher forcing, RMSProp, dropout ($p=0.5$), beam search decoding (beam size $7$), and early stopping on BLEU-4.
 
-**Training.** We used teacher forcing, RMSProp, and beam search with beam size 7. Early stopping is performed on BLEU-4. 
+**Dataset.** We evaluate on Flickr8k, which contains $8{,}000$ images paired with $5$ human-annotated captions each using the standard train/validation/test splits.
 
-**Dataset.** We use Flickr8k, which consists of 8,000 images with 5 human-annotated captions each, using the standard train/val/test splits.
 
 ---
 
@@ -73,7 +71,10 @@ pip install -r requirements.txt
 
 ### 2. Dataset
 
-Download the Flickr8k dataset (<https://www.kaggle.com/datasets/adityajn105/flickr8k?select=Images>) [3] and place it under `data/flickr8k/` with the following structure:
+Download the Flickr8k dataset from Kaggle:  
+<https://www.kaggle.com/datasets/adityajn105/flickr8k?select=Images> [3].
+
+Place it under `data/flickr8k/` with the following structure:
 
 ```text
 data/flickr8k/
@@ -86,7 +87,7 @@ data/flickr8k/
 
 ### 3. Run the Notebook
 
-Open and run:
+Open:
 
 ```text
 code/quick_run.ipynb
@@ -137,7 +138,7 @@ Outputs are saved to `results/`.
 
 
 **Findings:**
-- Our soft attention VGG implementation exceeds the paper’s reported BLEU-4 and METEOR scores, while hard attention VGG falls slightly below the paper's rsults.
+- Our soft attention VGG implementation exceeds the paper’s reported BLEU-4 and METEOR scores, while hard attention VGG falls slightly below the paper's results.
 - Hard attention was substantially harder to train because stochastic attention sampling and REINFORCE introduce high variance, making optimization more sensitive to hyperparameters.
 - Replacing VGG-19 with ResNet-50 improved both soft and hard attention performance across all metrics. ResNet-50 improved BLEU-4 by approximately **1.6** for soft attention and **3.9** for hard attention over our VGG baselines, likely because the deeper residual encoder produces more discriminative semantic features.
 - With a stronger encoder, hard attention nearly matched soft attention in BLEU-4 and slightly exceeded it in METEOR, suggesting that the performance gap between the two attention variants narrows when visual features improve.
