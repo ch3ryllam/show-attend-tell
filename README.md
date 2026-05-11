@@ -73,7 +73,7 @@ pip install -r requirements.txt
 
 ### 2. Dataset
 
-Download the Flickr8k dataset (<https://www.kaggle.com/datasets/adityajn105/flickr8k?select=Images>) and place it under `data/flickr8k/` with the following structure:
+Download the Flickr8k dataset (<https://www.kaggle.com/datasets/adityajn105/flickr8k?select=Images>) [3] and place it under `data/flickr8k/` with the following structure:
 
 ```text
 data/flickr8k/
@@ -99,10 +99,7 @@ Run each cell sequentially. The notebook:
 - saves checkpoints to `checkpoints/`.
 
 Training was performed on Google Colab using a T4 GPU. Each model took approximately **3 hours** to train. 
-
-Our checkpoints can be downloaded here: <https://drive.google.com/drive/folders/1jysQ4KbFIjmHAUBnZJxiC9zjB99msKLI?usp=sharing>. 
  
-
 
 ### 4. Visualization
 
@@ -149,7 +146,7 @@ Outputs are saved to `results/`.
 
 An important contribution of the paper is that the attention mechanism provides **interpretability**. At each timestep, the attention weights define a distribution over spatial features, which we convert into heatmaps to highlight the regions of the image the model is focusing on when generating each word. These visualizations can be found in `results/outputs`.
 
-![Soft and hard attention heatmaps](results/outputs/54501196_a9ac9d66f2/soft_attn.png)
+![Soft and hard attention heatmaps](results/outputs/54501196_a9ac9d66f2_poster/soft_attn.png)
 
 ---
 
