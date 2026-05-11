@@ -178,4 +178,4 @@ We successfully reimplemented both soft and hard attention variants from Show, A
 
 This project was completed as a final project for CS 4782 at Cornell University. We thank Prof. Weinberger, Prof. Ma, and the CS 4782 course staff for their guidance throughout the semester.
 
-[OpenAI](https://chatgpt.com/) and [Anthropic](https://claude.ai/) were used for debugging assistance.
+[ChatGPT](https://chatgpt.com/) and [Claude](https://claude.ai/) were used for debugging assistance.
